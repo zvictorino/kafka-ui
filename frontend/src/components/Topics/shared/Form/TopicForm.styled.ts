@@ -32,6 +32,12 @@ export const Label = styled.div`
   }
 `;
 
+export const LabelWithTooltip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
 export const Button = styled.button<{ isActive: boolean }>`
   background-color: ${({ theme, ...props }) =>
     props.isActive

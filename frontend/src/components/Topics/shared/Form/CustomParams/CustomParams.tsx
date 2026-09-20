@@ -13,13 +13,9 @@ import * as S from './CustomParams.styled';
 export interface CustomParamsProps {
   config?: TopicConfigParams;
   isSubmitting: boolean;
-  isEditing?: boolean;
 }
 
-const CustomParams: React.FC<CustomParamsProps> = ({
-  isSubmitting,
-  config,
-}) => {
+const CustomParams: React.FC<CustomParamsProps> = ({ isSubmitting, config }) => {
   const {
     trigger,
     control,
@@ -30,32 +26,32 @@ const CustomParams: React.FC<CustomParamsProps> = ({
     control,
     name: TOPIC_CUSTOM_PARAMS_PREFIX,
   });
+
   const watchFieldArray = useWatch({
     control,
     name: TOPIC_CUSTOM_PARAMS_PREFIX,
     defaultValue: fields,
   });
-  const controlledFields = fields.map((field, index) => {
-    return {
-      ...field,
-      ...watchFieldArray[index],
-    };
-  });
+
+  const controlledFields = fields.map((field, index) => ({
+    ...field,
+    ...watchFieldArray[index],
+  }));
 
   const [existingFields, setExistingFields] = React.useState<string[]>([]);
+
   const removeField = (index: number): void => {
-    const itemIndex = existingFields.indexOf(controlledFields[index].name);
-    if (itemIndex !== -1) {
-      existingFields.splice(itemIndex, 1);
-      setExistingFields(existingFields);
-      remove(index);
-      trigger('customParams');
+    const fieldName = controlledFields[index].name;
+    if (fieldName) {
+      setExistingFields((prev) => prev.filter((name) => name !== fieldName));
     }
+    remove(index);
+    trigger('customParams');
   };
 
   return (
     <S.ParamsWrapper>
-      {controlledFields?.map((field, idx) => (
+      {controlledFields.map((field, idx) => (
         <CustomParamField
           key={field.id}
           config={config}
@@ -68,16 +64,14 @@ const CustomParams: React.FC<CustomParamsProps> = ({
         />
       ))}
       <FormError>
-        <ErrorMessage errors={errors} name={`customParams` as const} />
+        <ErrorMessage errors={errors} name="customParams" />
       </FormError>
       <div>
         <Button
           type="button"
           buttonSize="M"
           buttonType="secondary"
-          onClick={() =>
-            append({ name: '', value: '' }, { shouldFocus: false })
-          }
+          onClick={() => append({ name: '', value: '' }, { shouldFocus: false })}
         >
           <PlusIcon />
           Add Custom Parameter

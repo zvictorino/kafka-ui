@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { ErrorMessage } from '@hookform/error-message';
-import { TOPIC_CUSTOM_PARAMS } from 'lib/constants';
+import { TOPIC_CUSTOM_PARAMS, DEDICATED_TOPIC_PARAM_FIELDS } from 'lib/constants';
 import { FieldArrayWithId, useFormContext, Controller } from 'react-hook-form';
 import { InputLabel } from 'components/common/Input/InputLabel.styled';
 import { FormError } from 'components/common/Input/Input.styled';
@@ -13,6 +13,12 @@ import InputWithOptions from 'components/common/InputWithOptions/InputWithOption
 import { TopicConfigParams, TopicFormData } from 'lib/interfaces/topic';
 
 import * as S from './CustomParams.styled';
+
+const BROKER_ONLY_SOURCES = new Set([
+  ConfigSource.STATIC_BROKER_CONFIG,
+  ConfigSource.DYNAMIC_BROKER_CONFIG,
+  ConfigSource.DYNAMIC_BROKER_LOGGER_CONFIG,
+]);
 
 export interface Props {
   config?: TopicConfigParams;
@@ -40,36 +46,38 @@ const CustomParamField: React.FC<Props> = ({
     trigger,
     control,
   } = useFormContext<TopicFormData>();
+
   const nameValue = watch(`customParams.${index}.name`);
   const prevName = useRef(nameValue);
 
   const options = Object.keys(TOPIC_CUSTOM_PARAMS)
     .sort()
+    .filter((option) => !DEDICATED_TOPIC_PARAM_FIELDS.has(option))
+    .filter(
+      (option) =>
+        !config ||
+        !config[option] ||
+        !BROKER_ONLY_SOURCES.has(config[option].source as ConfigSource)
+    )
     .map((option) => ({
       value: option,
       label: option,
-      disabled:
-        (config &&
-          config[option]?.source !== ConfigSource.DYNAMIC_TOPIC_CONFIG) ||
-        existingFields.includes(option),
+      disabled: existingFields.includes(option),
     }));
 
   React.useEffect(() => {
     if (nameValue !== prevName.current) {
-      let newExistingFields = [...existingFields];
-      if (prevName.current) {
-        newExistingFields = newExistingFields.filter(
-          (name) => name !== prevName.current
-        );
-      }
+      const prev = prevName.current;
       prevName.current = nameValue;
-      newExistingFields.push(nameValue);
-      setExistingFields(newExistingFields);
-      setValue(`customParams.${index}.value`, TOPIC_CUSTOM_PARAMS[nameValue], {
+      setExistingFields((prev_) => {
+        const without = prev ? prev_.filter((n) => n !== prev) : prev_;
+        return nameValue ? [...without, nameValue] : without;
+      });
+      setValue(`customParams.${index}.value`, TOPIC_CUSTOM_PARAMS[nameValue] ?? '', {
         shouldValidate: !!TOPIC_CUSTOM_PARAMS[nameValue],
       });
     }
-  }, [existingFields, index, nameValue, setExistingFields, setValue]);
+  }, [index, nameValue, setExistingFields, setValue]);
 
   return (
     <C.Column>

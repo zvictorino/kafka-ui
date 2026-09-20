@@ -7,6 +7,7 @@ import org.openapitools.jackson.nullable.JsonNullableModule;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.autoconfigure.web.reactive.WebFluxProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,9 +16,12 @@ import org.springframework.http.server.reactive.HttpHandler;
 import org.springframework.jmx.export.MBeanExporter;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.adapter.WebHttpHandlerBuilder;
+import org.springframework.web.server.session.DefaultWebSessionManager;
+import org.springframework.web.server.session.WebSessionManager;
 
 @Configuration
 @AllArgsConstructor
+@EnableConfigurationProperties(AuthProperties.class)
 public class Config {
 
   private final ApplicationContext applicationContext;
@@ -38,6 +42,13 @@ public class Config {
       return new ContextPathCompositeHandler(handlersMap);
     }
     return httpHandler;
+  }
+
+  @Bean(WebHttpHandlerBuilder.WEB_SESSION_MANAGER_BEAN_NAME)
+  public WebSessionManager webSessionManager(AuthProperties authProperties) {
+    var delegate = new DefaultWebSessionManager();
+    return exchange -> delegate.getSession(exchange)
+        .doOnNext(session -> session.setMaxIdleTime(authProperties.getSessionTimeout()));
   }
 
   @Bean

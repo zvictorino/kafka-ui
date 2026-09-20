@@ -98,6 +98,7 @@ describe('Topics hooks', () => {
         minInSyncReplicas: 0,
         cleanupPolicy: '',
         retentionMs: 0,
+        retentionBytes: -1,
         maxMessageBytes: 0,
         customParams: [],
       };

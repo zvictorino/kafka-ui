@@ -33,6 +33,7 @@ describe('topicParamsTransformer', () => {
     ).toEqual({
       ...TOPIC_EDIT_FORM_DEFAULT_PROPS,
       name: externalTopicPayload.name,
+      customParams: [{ name: 'compression.type', value: 'producer' }],
     });
   });
   it('returns default partitions config', () => {
@@ -43,11 +44,11 @@ describe('topicParamsTransformer', () => {
       ).partitions
     ).toEqual(TOPIC_EDIT_FORM_DEFAULT_PROPS.partitions);
   });
-  it('returns empty list of custom params', () => {
+  it('returns list of custom params when DYNAMIC_TOPIC_CONFIG', () => {
     expect(
       topicParamsTransformer(externalTopicPayload, topicConfigPayload)
         .customParams
-    ).toEqual([]);
+    ).toEqual([{ name: 'compression.type', value: 'producer' }]);
   });
   it('returns list of custom params', () => {
     expect(

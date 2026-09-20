@@ -6,6 +6,8 @@ import { MILLISECONDS_IN_WEEK, MILLISECONDS_IN_SECOND } from 'lib/constants';
 import { InputLabel } from 'components/common/Input/InputLabel.styled';
 import Input from 'components/common/Input/Input';
 import { FormError } from 'components/common/Input/Input.styled';
+import Tooltip from 'components/common/Tooltip/Tooltip';
+import InfoIcon from 'components/common/Icons/InfoIcon';
 
 import * as S from './TopicForm.styled';
 import TimeToRetainBtns from './TimeToRetainBtns';
@@ -32,7 +34,14 @@ const TimeToRetain: React.FC<Props> = ({ isSubmitting }) => {
     <>
       <S.Label>
         <InputLabel htmlFor="timeToRetain">
-          Time to retain data (in ms)
+          <S.LabelWithTooltip>
+            Time to retain data (in ms)
+            <Tooltip
+              value={<InfoIcon />}
+              content="Kafka config key: retention.ms"
+              placement="top"
+            />
+          </S.LabelWithTooltip>
         </InputLabel>
         {valueHint && <span>{valueHint}</span>}
       </S.Label>

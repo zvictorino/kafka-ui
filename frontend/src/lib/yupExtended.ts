@@ -81,7 +81,7 @@ export const topicFormValidationSchema = yup.object().shape({
   minInSyncReplicas: yup.string(),
   cleanupPolicy: yup.string().required(),
   retentionMs: yup.string(),
-  retentionBytes: yup.number(),
+  retentionBytes: yup.number().nullable().transform((v) => (isNaN(v) ? null : v)),
   maxMessageBytes: yup.string(),
   customParams: yup.array().of(
     yup

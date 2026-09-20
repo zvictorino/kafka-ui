@@ -1,6 +1,5 @@
 import React from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
-import { NOT_SET, BYTES_IN_GB } from 'lib/constants';
 import { ErrorMessage } from '@hookform/error-message';
 import Select from 'components/common/Select/Select';
 import Input from 'components/common/Input/Input';
@@ -13,9 +12,12 @@ import { useNavigate } from 'react-router-dom';
 import useAppParams from 'lib/hooks/useAppParams';
 import { TopicConfigParams, TopicName } from 'lib/interfaces/topic';
 import { ClusterName } from 'lib/interfaces/cluster';
+import Tooltip from 'components/common/Tooltip/Tooltip';
+import InfoIcon from 'components/common/Icons/InfoIcon';
 
 import CustomParams from './CustomParams/CustomParams';
 import TimeToRetain from './TimeToRetain';
+import RetentionBytes from './RetentionBytes';
 import * as S from './TopicForm.styled';
 
 export interface Props {
@@ -37,6 +39,20 @@ const CleanupPolicyOptions = [
   { value: 'compact,delete', label: 'Compact,Delete' },
 ];
 
+const ConfigKeyLabel: React.FC<{ label: string; configKey: string }> = ({
+  label,
+  configKey,
+}) => (
+  <S.LabelWithTooltip>
+    {label}
+    <Tooltip
+      value={<InfoIcon />}
+      content={`Kafka config key: ${configKey}`}
+      placement="top"
+    />
+  </S.LabelWithTooltip>
+);
+
 export const getCleanUpPolicyValue = (cleanUpPolicy?: string) => {
   if (!cleanUpPolicy) return undefined;
 
@@ -48,17 +64,8 @@ export const getCleanUpPolicyValue = (cleanUpPolicy?: string) => {
   })?.value.toString();
 };
 
-const RetentionBytesOptions = [
-  { value: NOT_SET, label: 'Not Set' },
-  { value: BYTES_IN_GB, label: '1 GB' },
-  { value: BYTES_IN_GB * 10, label: '10 GB' },
-  { value: BYTES_IN_GB * 20, label: '20 GB' },
-  { value: BYTES_IN_GB * 50, label: '50 GB' },
-];
-
 const TopicForm: React.FC<Props> = ({
   config,
-  retentionBytes,
   topicName,
   isEditing,
   isSubmitting,
@@ -74,11 +81,6 @@ const TopicForm: React.FC<Props> = ({
   const { clusterName } = useAppParams<{ clusterName: ClusterName }>();
   const getCleanUpPolicy =
     getCleanUpPolicyValue(cleanUpPolicy) || CleanupPolicyOptions[0].value;
-
-  const getRetentionBytes =
-    RetentionBytesOptions.find((option) => {
-      return option.value === retentionBytes;
-    })?.value || RetentionBytesOptions[0].value;
 
   const onCancel = () => {
     reset();
@@ -133,7 +135,10 @@ const TopicForm: React.FC<Props> = ({
                 id="topicFormCleanupPolicyLabel"
                 htmlFor="topicFormCleanupPolicy"
               >
-                Cleanup policy
+                <ConfigKeyLabel
+                  label="Cleanup policy"
+                  configKey="cleanup.policy"
+                />
               </InputLabel>
               <Controller
                 defaultValue={CleanupPolicyOptions[0].value}
@@ -158,7 +163,10 @@ const TopicForm: React.FC<Props> = ({
         <S.Column>
           <div>
             <InputLabel htmlFor="topicFormMinInSyncReplicas">
-              Min In Sync Replicas
+              <ConfigKeyLabel
+                label="Min In Sync Replicas"
+                configKey="min.insync.replicas"
+              />
             </InputLabel>
             <Input
               id="topicFormMinInSyncReplicas"
@@ -202,33 +210,15 @@ const TopicForm: React.FC<Props> = ({
 
         <S.Column>
           <div>
-            <InputLabel
-              id="topicFormRetentionBytesLabel"
-              htmlFor="topicFormRetentionBytes"
-            >
-              Max partition size in GB
-            </InputLabel>
-            <Controller
-              control={control}
-              name="retentionBytes"
-              defaultValue={RetentionBytesOptions[0].value}
-              render={({ field: { name, onChange } }) => (
-                <Select
-                  id="topicFormRetentionBytes"
-                  aria-labelledby="topicFormRetentionBytesLabel"
-                  name={name}
-                  value={getRetentionBytes}
-                  onChange={onChange}
-                  minWidth="100%"
-                  options={RetentionBytesOptions}
-                />
-              )}
-            />
+            <RetentionBytes />
           </div>
 
           <div>
             <InputLabel htmlFor="topicFormMaxMessageBytes">
-              Maximum message size in bytes
+              <ConfigKeyLabel
+                label="Maximum message size in bytes"
+                configKey="max.message.bytes"
+              />
             </InputLabel>
             <S.MessageSizeInput
               id="topicFormMaxMessageBytes"
@@ -249,7 +239,6 @@ const TopicForm: React.FC<Props> = ({
         <CustomParams
           config={config}
           isSubmitting={isSubmitting}
-          isEditing={isEditing}
         />
         <S.ButtonWrapper>
           <Button

@@ -89,6 +89,26 @@ const TopicTable: React.FC<{ params: GetTopicsRequest }> = ({ params }) => {
         },
       },
       {
+        id: TopicColumnsToSort.PRODUCTION,
+        header: 'Production',
+        accessorKey: 'bytesInPerSec',
+        size: 110,
+        cell: ({ getValue }) => {
+          const value = getValue<Topic['bytesInPerSec']>();
+          return value !== undefined ? `${formatBytes(value, 0)}/s` : 'N/A';
+        },
+      },
+      {
+        id: TopicColumnsToSort.MESSAGES_IN_PER_SEC,
+        header: 'Message Rate',
+        accessorKey: 'messagesInPerSec',
+        size: 110,
+        cell: ({ getValue }) => {
+          const value = getValue<Topic['messagesInPerSec']>();
+          return value !== undefined ? `${Math.round(value)}/s` : 'N/A';
+        },
+      },
+      {
         id: 'actions',
         header: '',
         cell: ActionsCell,

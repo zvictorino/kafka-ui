@@ -10,7 +10,6 @@ import { TOPIC_CUSTOM_PARAMS } from 'lib/constants';
 
 const isDisabled = false;
 const index = 0;
-const existingFields: string[] = [];
 const field = { name: 'name', value: 'value', id: 'id' };
 
 const SPACE_KEY = ' ';
@@ -55,7 +54,7 @@ describe('CustomParamsField', () => {
       isDisabled,
       index,
       remove,
-      existingFields,
+      existingFields: [],
       setExistingFields,
     });
     expect(getCustomParamInput()).toBeInTheDocument();
@@ -72,7 +71,7 @@ describe('CustomParamsField', () => {
         isDisabled,
         index,
         remove,
-        existingFields,
+        existingFields: [],
         setExistingFields,
       });
       await userEvent.click(getRemoveButton());
@@ -85,7 +84,7 @@ describe('CustomParamsField', () => {
         isDisabled,
         index,
         remove,
-        existingFields,
+        existingFields: [],
         setExistingFields,
       });
       await userEvent.type(getRemoveButton(), SPACE_KEY);
@@ -99,7 +98,7 @@ describe('CustomParamsField', () => {
         isDisabled,
         index,
         remove,
-        existingFields,
+        existingFields: [],
         setExistingFields,
       });
       await userEvent.click(getCustomParamInput());
@@ -114,30 +113,26 @@ describe('CustomParamsField', () => {
         isDisabled,
         index,
         remove,
-        existingFields,
+        existingFields: [],
         setExistingFields,
       });
       await userEvent.click(getCustomParamInput());
       await selectOption(getCustomParamsList(), topicCustomParam1);
-
-      expect(getValueInput()).toHaveValue(
-        TOPIC_CUSTOM_PARAMS[topicCustomParam1]
-      );
+      expect(getValueInput()).toHaveValue(TOPIC_CUSTOM_PARAMS[topicCustomParam1]);
     });
 
-    it('selecting option updates triggers setExistingFields', async () => {
+    it('already selected names are disabled in options', async () => {
       setupComponent({
         field,
         isDisabled,
         index,
         remove,
-        existingFields,
+        existingFields: [topicCustomParam1],
         setExistingFields,
       });
       await userEvent.click(getCustomParamInput());
-      await selectOption(getCustomParamsList(), topicCustomParam1);
-
-      expect(setExistingFields).toHaveBeenCalledTimes(1);
+      const option = screen.getAllByText(topicCustomParam1).at(-1)?.closest('li');
+      expect(option).toHaveAttribute('disabled');
     });
   });
 });

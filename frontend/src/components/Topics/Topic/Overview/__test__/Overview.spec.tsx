@@ -59,6 +59,16 @@ describe('Overview', () => {
     expect(screen.getByLabelText('replica-info')).toBeInTheDocument();
   });
 
+  it('renders production and consumption rate indicators', () => {
+    renderComponent();
+    expect(screen.getByText('Production')).toBeInTheDocument();
+    expect(screen.getByText('2 KB')).toBeInTheDocument();
+    expect(screen.getByText('Consumption')).toBeInTheDocument();
+    expect(screen.getByText('4 KB')).toBeInTheDocument();
+    expect(screen.getByText('Message Rate')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+  });
+
   it('renders replica cell with props', () => {
     render(<Replica leader />);
     const element = screen.getByLabelText('replica-info');

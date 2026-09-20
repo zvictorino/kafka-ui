@@ -37,6 +37,7 @@ import io.kafbat.ui.service.TopicsService;
 import io.kafbat.ui.service.acl.AclsService;
 import io.kafbat.ui.service.analyze.TopicAnalysisService;
 import io.kafbat.ui.service.mcp.McpTool;
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -428,6 +429,10 @@ public class TopicsController extends AbstractController implements TopicsApi, M
           InternalTopic::getMessagesCount,
           Comparator.nullsFirst(Long::compareTo)
       );
+      case PRODUCTION -> Comparator.comparing(
+          InternalTopic::getBytesInPerSec, Comparator.nullsFirst(BigDecimal::compareTo));
+      case MESSAGES_IN_PER_SEC -> Comparator.comparing(
+          InternalTopic::getMessagesInPerSec, Comparator.nullsFirst(BigDecimal::compareTo));
       default -> defaultComparator;
     };
   }

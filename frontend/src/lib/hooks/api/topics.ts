@@ -149,15 +149,15 @@ const formatTopicCreation = (form: TopicFormData): TopicCreation => {
 
   const configs = {
     'cleanup.policy': cleanupPolicy,
-    'retention.ms': retentionMs.toString(),
-    'max.message.bytes': maxMessageBytes.toString(),
-    'min.insync.replicas': minInSyncReplicas.toString(),
+    'retention.ms': retentionMs?.toString(),
+    'max.message.bytes': maxMessageBytes?.toString(),
+    'min.insync.replicas': minInSyncReplicas?.toString(),
     ...Object.values(customParams || {}).reduce(topicReducer, {}),
   };
 
   const cleanConfigs = () => {
     return Object.fromEntries(
-      Object.entries(configs).filter(([, val]) => val !== '')
+      Object.entries(configs).filter(([, val]) => val !== undefined && val !== '')
     );
   };
 
