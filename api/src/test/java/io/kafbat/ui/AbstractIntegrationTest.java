@@ -41,8 +41,10 @@ public abstract class AbstractIntegrationTest {
   private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
   private static final int JMX_PORT = 5555;
 
-  public static final ConfluentKafkaContainer kafkaOriginal = new ConfluentKafkaContainer(
-      DockerImageName.parse("confluentinc/cp-kafka").withTag(CONFLUENT_PLATFORM_VERSION));
+  public static final DockerImageName KAFKA_IMAGE_NAME = DockerImageName.parse("confluentinc/cp-kafka")
+      .withTag(CONFLUENT_PLATFORM_VERSION);
+
+  public static final ConfluentKafkaContainer kafkaOriginal = new ConfluentKafkaContainer(KAFKA_IMAGE_NAME);
 
   public static final ConfluentKafkaContainer kafka = kafkaOriginal
       .withListener("0.0.0.0:9095", () -> kafkaOriginal.getNetworkAliases().getFirst() + ":9095")
@@ -111,6 +113,7 @@ public abstract class AbstractIntegrationTest {
       System.setProperty("kafka.clusters.0.masking.0.type", "REPLACE");
       System.setProperty("kafka.clusters.0.masking.0.replacement", "***");
       System.setProperty("kafka.clusters.0.masking.0.topicValuesPattern", "masking-test-.*");
+      System.setProperty("kafka.clusters.0.schemaRegistryAllSubjectsCacheTtlSeconds", "0");
       System.setProperty("kafka.clusters.0.audit.topicAuditEnabled", "true");
       System.setProperty("kafka.clusters.0.audit.consoleAuditEnabled", "true");
 

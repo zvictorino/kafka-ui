@@ -227,8 +227,7 @@ function Table<TData>({
         return setRowId(originalRow);
       }
 
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      if ('name' in (originalRow as {})) {
+      if ('name' in (originalRow as object)) {
         return (originalRow as unknown as { name: string }).name;
       }
 
@@ -264,6 +263,9 @@ function Table<TData>({
           return row.getValue(columnId);
         }
         return filterValue.includes(row.getValue(columnId));
+      },
+      noop: () => {
+        return true;
       },
     },
   });

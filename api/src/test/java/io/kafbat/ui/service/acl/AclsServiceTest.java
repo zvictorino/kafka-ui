@@ -1,10 +1,15 @@
 package io.kafbat.ui.service.acl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.kafbat.ui.config.ClustersProperties;
+import io.kafbat.ui.exception.ValidationException;
 import io.kafbat.ui.model.CreateConsumerAclDTO;
 import io.kafbat.ui.model.CreateProducerAclDTO;
 import io.kafbat.ui.model.CreateStreamAppAclDTO;
@@ -13,6 +18,7 @@ import io.kafbat.ui.service.AdminClientService;
 import io.kafbat.ui.service.ReactiveAdminClient;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
@@ -40,6 +46,7 @@ class AclsServiceTest {
   @BeforeEach
   void initMocks() {
     when(adminClientService.get(CLUSTER)).thenReturn(Mono.just(adminClientMock));
+    when(adminClientMock.loadSuperUsers()).thenReturn(Mono.just(Set.of()));
   }
 
   @Test
@@ -92,7 +99,9 @@ class AclsServiceTest {
     when(adminClientMock.createAcls(createdCaptor.capture()))
         .thenReturn(Mono.empty());
 
-    var principal = UUID.randomUUID().toString();
+    var principalType = UUID.randomUUID().toString();
+    var principalName = UUID.randomUUID().toString();
+    var principal = String.format("%s:%s", principalType, principalName);
     var host = UUID.randomUUID().toString();
 
     aclsService.createConsumerAcl(
@@ -140,7 +149,9 @@ class AclsServiceTest {
     when(adminClientMock.createAcls(createdCaptor.capture()))
         .thenReturn(Mono.empty());
 
-    var principal = UUID.randomUUID().toString();
+    var principalType = UUID.randomUUID().toString();
+    var principalName = UUID.randomUUID().toString();
+    var principal = String.format("%s:%s", principalType, principalName);
     var host = UUID.randomUUID().toString();
 
     aclsService.createConsumerAcl(
@@ -176,7 +187,9 @@ class AclsServiceTest {
     when(adminClientMock.createAcls(createdCaptor.capture()))
         .thenReturn(Mono.empty());
 
-    var principal = UUID.randomUUID().toString();
+    var principalType = UUID.randomUUID().toString();
+    var principalName = UUID.randomUUID().toString();
+    var principal = String.format("%s:%s", principalType, principalName);
     var host = UUID.randomUUID().toString();
 
     aclsService.createProducerAcl(
@@ -221,7 +234,9 @@ class AclsServiceTest {
     when(adminClientMock.createAcls(createdCaptor.capture()))
         .thenReturn(Mono.empty());
 
-    var principal = UUID.randomUUID().toString();
+    var principalType = UUID.randomUUID().toString();
+    var principalName = UUID.randomUUID().toString();
+    var principal = String.format("%s:%s", principalType, principalName);
     var host = UUID.randomUUID().toString();
 
     aclsService.createProducerAcl(
@@ -263,7 +278,9 @@ class AclsServiceTest {
     when(adminClientMock.createAcls(createdCaptor.capture()))
         .thenReturn(Mono.empty());
 
-    var principal = UUID.randomUUID().toString();
+    var principalType = UUID.randomUUID().toString();
+    var principalName = UUID.randomUUID().toString();
+    var principal = String.format("%s:%s", principalType, principalName);
     var host = UUID.randomUUID().toString();
 
     aclsService.createStreamAppAcl(
@@ -296,6 +313,149 @@ class AclsServiceTest {
         .contains(new AclBinding(
             new ResourcePattern(ResourceType.TOPIC, "appId1", PatternType.PREFIXED),
             new AccessControlEntry(principal, host, AclOperation.ALL, AclPermissionType.ALLOW)));
+  }
+
+
+  @Test
+  void throwsExceptionWhenCreatingConsumerAclWithInvalidPrincipal() {
+    var principal = UUID.randomUUID().toString();
+    var host = UUID.randomUUID().toString();
+    
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> aclsService.createConsumerAcl(
+        CLUSTER,
+        new CreateConsumerAclDTO()
+            .principal(principal)
+            .host(host)
+            .consumerGroups(List.of("cg1"))
+            .topics(List.of("t1"))
+        ).block())).isInstanceOf(IllegalArgumentException.class);
+  }
+
+
+  @Test
+  void throwsExceptionWhenCreatingProducerAclWithInvalidPrincipal() {
+    var principal = UUID.randomUUID().toString();
+    var host = UUID.randomUUID().toString();
+    
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> aclsService.createProducerAcl(
+        CLUSTER,
+        new CreateProducerAclDTO()
+            .principal(principal)
+            .host(host)
+            .topics(List.of("t1"))
+        ).block())).isInstanceOf(IllegalArgumentException.class);
+  }
+
+
+  @Test
+  void throwsExceptionWhenCreatingStreamAppAclWithInvalidPrincipal() {
+    var principal = UUID.randomUUID().toString();
+    var host = UUID.randomUUID().toString();
+    
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> aclsService.createStreamAppAcl(
+        CLUSTER,
+        new CreateStreamAppAclDTO()
+            .principal(principal)
+            .host(host)
+            .inputTopics(List.of("t1"))
+            .outputTopics(List.of("t2"))
+            .applicationId("appId")
+        ).block())).isInstanceOf(IllegalArgumentException.class);
+  }
+
+
+  @Test
+  void throwsExceptionWhenCreatingAclWithInvalidPrincipal() {
+    var principal = UUID.randomUUID().toString();
+    var host = UUID.randomUUID().toString();
+    
+    assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> aclsService.createAcl(
+        CLUSTER,
+        new AclBinding(
+            new ResourcePattern(ResourceType.TOPIC, "t1", PatternType.LITERAL),
+            new AccessControlEntry(principal, host, AclOperation.READ, AclPermissionType.ALLOW))
+        ).block())).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void rejectsPrincipalWithLeadingOrTrailingWhitespace() {
+    var host = UUID.randomUUID().toString();
+
+    for (String principal : List.of(" User:test", "User:test ", "User: test", "User :test")) {
+      assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> aclsService.createAcl(
+          CLUSTER,
+          new AclBinding(
+              new ResourcePattern(ResourceType.TOPIC, "t1", PatternType.LITERAL),
+              new AccessControlEntry(principal, host, AclOperation.READ, AclPermissionType.ALLOW))
+      ).block())).isInstanceOf(IllegalArgumentException.class);
+    }
+  }
+
+
+  @Test
+  void syncAclWithAclCsvDoesNotDeleteAclsOfSuperUsers() {
+    var superUserBinding = new AclBinding(
+        new ResourcePattern(ResourceType.TOPIC, "*", PatternType.LITERAL),
+        new AccessControlEntry("User:super", "*", AclOperation.ALL, AclPermissionType.ALLOW));
+
+    var keptBinding = new AclBinding(
+        new ResourcePattern(ResourceType.GROUP, "group1", PatternType.PREFIXED),
+        new AccessControlEntry("User:test2", "localhost", AclOperation.DESCRIBE, AclPermissionType.DENY));
+
+    when(adminClientMock.loadSuperUsers()).thenReturn(Mono.just(Set.of("User:super")));
+    when(adminClientMock.listAcls(ResourcePatternFilter.ANY))
+        .thenReturn(Mono.just(List.of(superUserBinding, keptBinding)));
+
+    // The CSV keeps only the non super user binding, so a plain sync would delete the super user's
+    // ACL. That deletion must be refused rather than performed through the sync path.
+    aclsService.syncAclWithAclCsv(
+        CLUSTER,
+        "Principal,ResourceType, PatternType, ResourceName,Operation,PermissionType,Host" + System.lineSeparator()
+            + "User:test2,GROUP,PREFIXED,group1,DESCRIBE,DENY,localhost"
+    ).block();
+
+    verify(adminClientMock, never()).deleteAcls(any());
+    verify(adminClientMock, never()).createAcls(any());
+  }
+
+  @Test
+  void refusesToDeleteAclsOfSuperUserPrincipal() {
+    when(adminClientMock.loadSuperUsers()).thenReturn(Mono.just(Set.of("User:super")));
+
+    assertThat(catchThrowable(() -> aclsService.deleteAclsForPrincipal(CLUSTER, "User:super").block()))
+        .isInstanceOf(ValidationException.class);
+
+    verify(adminClientMock, never()).deleteAcls(any());
+  }
+
+  @Test
+  void refusesToDeleteAclOfSuperUser() {
+    var superUserBinding = new AclBinding(
+        new ResourcePattern(ResourceType.TOPIC, "*", PatternType.LITERAL),
+        new AccessControlEntry("User:super", "*", AclOperation.ALL, AclPermissionType.ALLOW));
+
+    when(adminClientMock.loadSuperUsers()).thenReturn(Mono.just(Set.of("User:super")));
+
+    assertThat(catchThrowable(() -> aclsService.deleteAcl(CLUSTER, superUserBinding).block()))
+        .isInstanceOf(ValidationException.class);
+
+    verify(adminClientMock, never()).deleteAcls(any());
+  }
+
+  @Test
+  void doesNotLoadSuperUsersWhenTheyAreRequestedToBeShown() {
+    var superUserBinding = new AclBinding(
+        new ResourcePattern(ResourceType.TOPIC, "*", PatternType.LITERAL),
+        new AccessControlEntry("User:super", "*", AclOperation.ALL, AclPermissionType.ALLOW));
+
+    when(adminClientMock.listAcls(ResourcePatternFilter.ANY))
+        .thenReturn(Mono.just(List.of(superUserBinding)));
+
+    assertThat(aclsService.listAcls(CLUSTER, ResourcePatternFilter.ANY, "", false, true)
+        .collectList().block())
+        .containsExactly(superUserBinding);
+
+    verify(adminClientMock, never()).loadSuperUsers();
   }
 
   @SuppressWarnings("unchecked")

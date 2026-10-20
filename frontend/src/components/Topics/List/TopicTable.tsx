@@ -8,6 +8,8 @@ import { useTopics } from 'lib/hooks/api/topics';
 import { PER_PAGE } from 'lib/constants';
 import { useLocalStoragePersister } from 'components/common/NewTable/ColumnResizer/lib';
 import { formatBytes } from 'components/common/BytesFormatted/utils';
+import PageLoader from 'components/common/PageLoader/PageLoader';
+import ErrorPage from 'components/ErrorPage/ErrorPage';
 
 import { TopicTitleCell } from './TopicTitleCell';
 import ActionsCell from './ActionsCell';
@@ -17,7 +19,7 @@ const TopicTable: React.FC<{ params: GetTopicsRequest }> = ({ params }) => {
   const [searchParams] = useSearchParams();
   const { isReadOnly } = React.useContext(ClusterContext);
 
-  const { data } = useTopics({
+  const { data, error, refetch, isLoading, isRefetching } = useTopics({
     ...params,
     page: Number(searchParams.get('page') || 1),
     perPage: Number(searchParams.get('perPage') || PER_PAGE),
@@ -87,6 +89,26 @@ const TopicTable: React.FC<{ params: GetTopicsRequest }> = ({ params }) => {
         },
       },
       {
+        id: TopicColumnsToSort.PRODUCTION,
+        header: 'Production',
+        accessorKey: 'bytesInPerSec',
+        size: 110,
+        cell: ({ getValue }) => {
+          const value = getValue<Topic['bytesInPerSec']>();
+          return value !== undefined ? `${formatBytes(value, 0)}/s` : 'N/A';
+        },
+      },
+      {
+        id: TopicColumnsToSort.MESSAGES_IN_PER_SEC,
+        header: 'Message Rate',
+        accessorKey: 'messagesInPerSec',
+        size: 110,
+        cell: ({ getValue }) => {
+          const value = getValue<Topic['messagesInPerSec']>();
+          return value !== undefined ? `${Math.round(value)}/s` : 'N/A';
+        },
+      },
+      {
         id: 'actions',
         header: '',
         cell: ActionsCell,
@@ -97,6 +119,14 @@ const TopicTable: React.FC<{ params: GetTopicsRequest }> = ({ params }) => {
   );
 
   const columnSizingPersister = useLocalStoragePersister('Topics');
+
+  if (isLoading || isRefetching) {
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorPage offsetY={201} status={error.status} onClick={refetch} />;
+  }
 
   return (
     <Table

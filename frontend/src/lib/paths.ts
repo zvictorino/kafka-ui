@@ -157,6 +157,7 @@ export const clusterTopicMessagesRelativePath = 'messages';
 export const clusterTopicConsumerGroupsRelativePath = 'consumer-groups';
 export const clusterTopicStatisticsRelativePath = 'statistics';
 export const clusterTopicConnectorsRelativePath = 'connectors';
+export const clusterTopicAclsRelativePath = 'acls';
 export const clusterTopicEditRelativePath = 'edit';
 export const clusterTopicPath = (
   clusterName: ClusterName = RouteParams.clusterName,
@@ -329,7 +330,11 @@ export const clusterNewConfigPath = `/ui/clusters/${clusterNewConfigRelativePath
 
 // ACL
 export const clusterAclRelativePath = 'acl';
+export const clusterUsersRelativePath = 'users';
 export const clusterAclNewRelativePath = 'create-new-acl';
 export const clusterACLPath = (
   clusterName: ClusterName = RouteParams.clusterName
 ) => `${clusterPath(clusterName)}/${clusterAclRelativePath}`;
+export const clusterUsersPath = (
+  clusterName: ClusterName = RouteParams.clusterName
+) => `${clusterPath(clusterName)}/${clusterUsersRelativePath}`;

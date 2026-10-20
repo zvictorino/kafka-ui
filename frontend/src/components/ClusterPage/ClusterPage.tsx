@@ -12,6 +12,7 @@ import {
   clusterConfigRelativePath,
   getNonExactPath,
   clusterAclRelativePath,
+  clusterUsersRelativePath,
   kafkaConnectRelativePath,
   clusterConnectorNewRelativePath,
   clusterConnectConnectorRelativePath,
@@ -37,6 +38,7 @@ const ConsumerGroups = React.lazy(
   () => import('components/ConsumerGroups/ConsumerGroups')
 );
 const AclPage = React.lazy(() => import('components/ACLPage/ACLPage'));
+const UsersPage = React.lazy(() => import('components/UsersPage/UsersPage'));
 
 const ClusterPage: React.FC = () => {
   const { clusterName } = useAppParams<ClusterNameRoute>();
@@ -64,6 +66,9 @@ const ClusterPage: React.FC = () => {
       ftsEnabled: features.includes(ClusterFeaturesEnum.FTS_ENABLED),
       ftsDefaultEnabled: features.includes(
         ClusterFeaturesEnum.FTS_DEFAULT_ENABLED
+      ),
+      messageRelativeTimestamp: features.includes(
+        ClusterFeaturesEnum.MESSAGE_RELATIVE_TIMESTAMP
       ),
     };
   }, [clusterName, data]);
@@ -124,6 +129,12 @@ const ClusterPage: React.FC = () => {
               <Route
                 path={getNonExactPath(clusterAclRelativePath)}
                 element={<AclPage />}
+              />
+            )}
+            {contextValue.hasAclViewConfigured && (
+              <Route
+                path={getNonExactPath(clusterUsersRelativePath)}
+                element={<UsersPage />}
               />
             )}
             {appInfo.hasDynamicConfig && (

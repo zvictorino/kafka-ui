@@ -17,7 +17,8 @@ interface AclApi {
     @query resourceName?: string,
     @query namePatternType?: KafkaAclNamePatternType,
     @query search?: string,
-    @query fts?: boolean
+    @query fts?: boolean,
+    @query showSystemUsers?: boolean
   ): KafkaAcl[];
 
   @route("/csv")

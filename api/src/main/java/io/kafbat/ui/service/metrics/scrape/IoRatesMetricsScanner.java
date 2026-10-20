@@ -1,7 +1,6 @@
 package io.kafbat.ui.service.metrics.scrape;
 
 import static org.apache.commons.lang3.Strings.CI;
-import static org.apache.commons.lang3.Strings.CS;
 
 import io.kafbat.ui.model.Metrics;
 import io.prometheus.metrics.model.snapshots.GaugeSnapshot;
@@ -25,6 +24,7 @@ class IoRatesMetricsScanner {
   // per topic
   final Map<String, BigDecimal> bytesInFifteenMinuteRate = new HashMap<>();
   final Map<String, BigDecimal> bytesOutFifteenMinuteRate = new HashMap<>();
+  final Map<String, BigDecimal> messagesInFifteenMinuteRate = new HashMap<>();
 
   IoRatesMetricsScanner(Map<Integer, List<MetricSnapshot>> perBrokerMetrics) {
     for (Map.Entry<Integer, List<MetricSnapshot>> broker : perBrokerMetrics.entrySet()) {
@@ -51,6 +51,7 @@ class IoRatesMetricsScanner {
     return Metrics.IoRates.builder()
         .topicBytesInPerSec(bytesInFifteenMinuteRate)
         .topicBytesOutPerSec(bytesOutFifteenMinuteRate)
+        .topicMessagesInPerSec(messagesInFifteenMinuteRate)
         .brokerBytesInPerSec(brokerBytesInFifteenMinuteRate)
         .brokerBytesOutPerSec(brokerBytesOutFifteenMinuteRate)
         .build();
@@ -86,6 +87,9 @@ class IoRatesMetricsScanner {
         } else if ("BytesOutPerSec".equalsIgnoreCase(nameLblVal)) {
           BigDecimal val = BigDecimal.valueOf(value);
           bytesOutFifteenMinuteRate.merge(topic, val, BigDecimal::add);
+        } else if ("MessagesInPerSec".equalsIgnoreCase(nameLblVal)) {
+          BigDecimal val = BigDecimal.valueOf(value);
+          messagesInFifteenMinuteRate.merge(topic, val, BigDecimal::add);
         }
       }
     }

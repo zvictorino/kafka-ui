@@ -9,6 +9,7 @@ import io.kafbat.ui.service.masking.DataMasking;
 import io.kafbat.ui.service.metrics.scrape.MetricsScraper;
 import io.kafbat.ui.sr.api.KafkaSrClientApi;
 import io.kafbat.ui.util.ReactiveFailover;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import lombok.AccessLevel;
@@ -25,6 +26,8 @@ public class KafkaCluster {
   private final String name;
   private final String version;
   private final String bootstrapServers;
+  private final String zookeeperConnect;
+  private final List<String> superUsers;
   private final Properties properties;
   private final Properties consumerProperties;
   private final Properties producerProperties;
@@ -34,7 +37,9 @@ public class KafkaCluster {
   private final PollingSettings pollingSettings;
   private final MetricsScraper metricsScrapping;
   private final ReactiveFailover<KafkaSrClientApi> schemaRegistryClient;
+  private final String schemaRegistryTopicSubjectSuffix;
   private final Map<String, ReactiveFailover<KafkaConnectClientApi>> connectsClients;
+  private final Map<String, ClustersProperties.ConnectCluster> connectsConfigs;
   private final ReactiveFailover<KsqlApiClient> ksqlClient;
   private final ReactiveFailover<PrometheusClientApi> prometheusStorageClient;
 }

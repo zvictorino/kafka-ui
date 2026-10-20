@@ -4,7 +4,7 @@ import { FormValues } from './types';
 
 export const toRequest = (formValues: FormValues): CreateProducerAcl => {
   return {
-    principal: formValues.principal,
+    principal: `User:${formValues.username.trim()}`,
     host: formValues.host,
     topics: formValues.topics?.map((opt) => opt.value),
     topicsPrefix: formValues.topicsPrefix,

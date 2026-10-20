@@ -8,10 +8,12 @@ import Table, {
 } from 'components/common/NewTable';
 import { clusterBrokerPath } from 'lib/paths';
 import { useBrokers } from 'lib/hooks/api/brokers';
-import { useClusterStats } from 'lib/hooks/api/clusters';
+import { useClusters, useClusterStats } from 'lib/hooks/api/clusters';
 import ResourcePageHeading from 'components/common/ResourcePageHeading/ResourcePageHeading';
 import { Button } from 'components/common/Button/Button';
 import ExportIcon from 'components/common/Icons/ExportIcon';
+import PageLoader from 'components/common/PageLoader/PageLoader';
+import ErrorPage from 'components/ErrorPage/ErrorPage';
 
 import { getBrokersTableColumns, getBrokersTableRows } from './lib';
 import { BrokersMetrics } from './BrokersMetrics/BrokersMetrics';
@@ -19,8 +21,16 @@ import { BrokersMetrics } from './BrokersMetrics/BrokersMetrics';
 const BrokersList: React.FC = () => {
   const navigate = useNavigate();
   const { clusterName } = useAppParams<{ clusterName: ClusterName }>();
+  const { data: clusterData } = useClusters();
+  const cluster = clusterData?.find(({ name }) => name === clusterName);
   const { data: clusterStats = {} } = useClusterStats(clusterName);
-  const { data: brokers } = useBrokers(clusterName);
+  const {
+    data: brokers,
+    error,
+    refetch,
+    isLoading,
+    isSuccess,
+  } = useBrokers(clusterName);
 
   const {
     brokerCount,
@@ -76,17 +86,31 @@ const BrokersList: React.FC = () => {
               offlinePartitionCount={offlinePartitionCount}
               onlinePartitionCount={onlinePartitionCount}
               underReplicatedPartitionCount={underReplicatedPartitionCount}
+              controller={cluster?.controller}
             />
 
-            <Table
-              columns={columns}
-              data={rows}
-              enableSorting
-              onRowClick={({ original: { brokerId } }) =>
-                navigate(clusterBrokerPath(clusterName, brokerId))
-              }
-              emptyMessage="No clusters are online"
-            />
+            {isLoading && <PageLoader offsetY={300} />}
+
+            {error && (
+              <ErrorPage
+                offsetY={300}
+                status={error.status}
+                onClick={refetch}
+                text={error.message}
+              />
+            )}
+
+            {isSuccess && (
+              <Table
+                columns={columns}
+                data={rows}
+                enableSorting
+                onRowClick={({ original: { brokerId } }) =>
+                  navigate(clusterBrokerPath(clusterName, brokerId))
+                }
+                emptyMessage="No clusters are online"
+              />
+            )}
           </>
         );
       }}

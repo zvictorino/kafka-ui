@@ -4,7 +4,7 @@ import { FormValues } from './types';
 
 export const toRequest = (formValues: FormValues): CreateConsumerAcl => {
   return {
-    principal: formValues.principal,
+    principal: `User:${formValues.username.trim()}`,
     host: formValues.host,
     consumerGroups: formValues.consumerGroups?.map((opt) => opt.value),
     consumerGroupsPrefix: formValues.consumerGroupsPrefix,

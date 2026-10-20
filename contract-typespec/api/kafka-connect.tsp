@@ -182,6 +182,7 @@ model Connect {
   version?: string | null;
   commit?: string | null;
   clusterId?: string | null;
+  consumerNamePattern?: string;
 }
 
 model ConnectorConfig is Record<unknown>;
@@ -212,6 +213,7 @@ model NewConnector {
 enum ConnectorType {
   SOURCE,
   SINK,
+  UNKNOWN,
 }
 
 enum ConnectorTaskStatus {
@@ -245,6 +247,7 @@ model Connector {
   status: ConnectorStatus;
   connect: string;
   topics?: string[];
+  consumer?: string | null;
 }
 
 enum ConnectorAction {
@@ -316,6 +319,7 @@ model FullConnectorInfo {
   status: ConnectorStatus;
   tasksCount?: integer;
   failedTasksCount?: integer;
+  consumer?: string | null;
 }
 
 enum ConnectorColumnsToSort {

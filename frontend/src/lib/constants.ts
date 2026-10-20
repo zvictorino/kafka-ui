@@ -47,6 +47,14 @@ export const TOPIC_CUSTOM_PARAMS: Record<string, string> = {
   'segment.index.bytes': '10485760',
 };
 
+export const DEDICATED_TOPIC_PARAM_FIELDS = new Set([
+  'retention.bytes',
+  'retention.ms',
+  'cleanup.policy',
+  'max.message.bytes',
+  'min.insync.replicas',
+]);
+
 export const MILLISECONDS_IN_WEEK = 604_800_000;
 export const MILLISECONDS_IN_DAY = 86_400_000;
 export const MILLISECONDS_IN_HOUR = 3_600_000;

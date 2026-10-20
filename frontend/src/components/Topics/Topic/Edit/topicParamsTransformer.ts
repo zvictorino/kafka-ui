@@ -2,10 +2,11 @@ import {
   MILLISECONDS_IN_WEEK,
   TOPIC_CUSTOM_PARAMS,
   TOPIC_CUSTOM_PARAMS_PREFIX,
+  DEDICATED_TOPIC_PARAM_FIELDS,
 } from 'lib/constants';
 import { TOPIC_EDIT_FORM_DEFAULT_PROPS } from 'components/Topics/Topic/Edit/Edit';
 import { getCleanUpPolicyValue } from 'components/Topics/shared/Form/TopicForm';
-import { Topic, TopicConfig } from 'generated-sources';
+import { Topic, TopicConfig, ConfigSource } from 'generated-sources';
 
 export const getValue = (
   config: TopicConfig[],
@@ -20,9 +21,10 @@ const topicParamsTransformer = (topic?: Topic, config?: TopicConfig[]) => {
   }
 
   const customParams = config.reduce(
-    (acc, { name, value, defaultValue }) => {
-      if (value === defaultValue) return acc;
+    (acc, { name, value, source }) => {
+      if (source !== ConfigSource.DYNAMIC_TOPIC_CONFIG) return acc;
       if (!TOPIC_CUSTOM_PARAMS[name]) return acc;
+      if (DEDICATED_TOPIC_PARAM_FIELDS.has(name)) return acc;
       return [...acc, { name, value }];
     },
     [] as { name: string; value?: string }[]

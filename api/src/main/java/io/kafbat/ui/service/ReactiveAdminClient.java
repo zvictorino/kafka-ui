@@ -20,15 +20,18 @@ import java.io.Closeable;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -62,8 +65,15 @@ import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.admin.ProducerState;
+import org.apache.kafka.clients.admin.QuorumInfo;
 import org.apache.kafka.clients.admin.RecordsToDelete;
+import org.apache.kafka.clients.admin.ScramCredentialInfo;
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.admin.UserScramCredentialAlteration;
+import org.apache.kafka.clients.admin.UserScramCredentialDeletion;
+import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
+import org.apache.kafka.clients.admin.UserScramCredentialsDescription;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
@@ -101,6 +111,10 @@ import reactor.util.function.Tuples;
 @AllArgsConstructor
 public class ReactiveAdminClient implements Closeable {
   private static final String DEFAULT_UNKNOWN_VERSION = "Unknown";
+  // super.users lookup needs one describeConfigs per broker; keep them concurrent but bounded so a
+  // large cluster does not open an unbounded number of requests.
+  private static final int SUPER_USER_CONFIG_CONCURRENCY = 8;
+  private static final String SUPER_USERS_CONFIG = "super.users";
 
   public enum SupportedFeature {
     INCREMENTAL_ALTER_CONFIGS(2.3f),
@@ -153,7 +167,7 @@ public class ReactiveAdminClient implements Closeable {
     private static Mono<ConfigRelatedInfo> extract(AdminClient ac) {
       return ReactiveAdminClient.describeClusterImpl(ac, Set.of())
           .flatMap(desc -> {
-            // choosing node from which we will get configs (starting with controller)
+            // choosing the node which we will get configs from (starting with the controller)
             var targetNodeId = Optional.ofNullable(desc.controller)
                 .map(Node::id)
                 .orElse(desc.getNodes().iterator().next().id());
@@ -183,17 +197,22 @@ public class ReactiveAdminClient implements Closeable {
                   final String finalVersion = version.orElse(DEFAULT_UNKNOWN_VERSION);
                   final boolean finalTopicDeletionEnabled = topicDeletionEnabled;
                   return SupportedFeature.forVersion(ac, version)
-                      .map(features -> new ConfigRelatedInfo(finalVersion, features, finalTopicDeletionEnabled));
+                      .map(features -> new ConfigRelatedInfo(
+                          finalVersion,
+                          features,
+                          finalTopicDeletionEnabled
+                      ));
                 });
           })
           .cache(UPDATE_DURATION);
     }
   }
 
-  public static Mono<ReactiveAdminClient> create(AdminClient adminClient, ClustersProperties.AdminClient properties) {
+  public static Mono<ReactiveAdminClient> create(AdminClient adminClient, ClustersProperties.AdminClient properties,
+                                                 Collection<String> configuredSuperUsers) {
     Mono<ConfigRelatedInfo> configRelatedInfoMono = ConfigRelatedInfo.extract(adminClient);
-    return configRelatedInfoMono.map(info ->
-        new ReactiveAdminClient(adminClient, configRelatedInfoMono, properties, info)
+    return configRelatedInfoMono.map(info -> new ReactiveAdminClient(
+        adminClient, configRelatedInfoMono, properties, parseConfiguredSuperUsers(configuredSuperUsers), info)
     );
   }
 
@@ -211,19 +230,20 @@ public class ReactiveAdminClient implements Closeable {
   // NOTE: if KafkaFuture returns null, that Mono will be empty(!), since Reactor does not support nullable results
   // (see MonoSink.success(..) javadoc for details)
   public static <T> Mono<T> toMono(KafkaFuture<T> future) {
-    return Mono.<T>create(sink -> future.whenComplete((res, ex) -> {
-      if (ex != null) {
-        // KafkaFuture doc is unclear about what exception wrapper will be used
-        // (from docs it should be ExecutionException, be we actually see CompletionException, so checking both
-        if (ex instanceof CompletionException || ex instanceof ExecutionException) {
-          sink.error(ex.getCause()); //unwrapping exception
-        } else {
-          sink.error(ex);
-        }
-      } else {
-        sink.success(res);
-      }
-    })).doOnCancel(() -> future.cancel(true))
+    return Mono.<T>create(sink ->
+            future.whenComplete((res, ex) -> {
+              if (ex != null) {
+                // KafkaFuture doc is unclear about what exception wrapper will be used
+                // (from docs it should be ExecutionException, be we actually see CompletionException, so checking both
+                if (ex instanceof CompletionException || ex instanceof ExecutionException) {
+                  sink.error(ex.getCause()); //unwrapping exception
+                } else {
+                  sink.error(ex);
+                }
+              } else {
+                sink.success(res);
+              }
+            })).doOnCancel(() -> future.cancel(true))
         // AdminClient is using single thread for kafka communication
         // and by default all downstream operations (like map(..)) on created Mono will be executed on this thread.
         // If some of downstream operation are blocking (by mistake) this can lead to
@@ -238,8 +258,12 @@ public class ReactiveAdminClient implements Closeable {
   private final AdminClient client;
   private final Mono<ConfigRelatedInfo> configRelatedInfoMono;
   private final ClustersProperties.AdminClient properties;
+  // Principals the operator declared in the cluster config. Merged with whatever the brokers
+  // report, because Kafka redacts super.users and the brokers often cannot tell us anything.
+  private final Set<String> configuredSuperUsers;
 
   private volatile ConfigRelatedInfo configRelatedInfo;
+  private final AtomicBoolean superUsersUnavailableWarned = new AtomicBoolean();
 
   public Set<SupportedFeature> getClusterFeatures() {
     return configRelatedInfo.features();
@@ -308,10 +332,16 @@ public class ReactiveAdminClient implements Closeable {
   }
 
   private static Mono<Map<Integer, List<ConfigEntry>>> loadBrokersConfig(AdminClient client, List<Integer> brokerIds) {
+    return loadBrokersConfig(client, brokerIds, false);
+  }
+
+  private static Mono<Map<Integer, List<ConfigEntry>>> loadBrokersConfig(AdminClient client, List<Integer> brokerIds,
+                                                                        boolean includeSynonyms) {
     List<ConfigResource> resources = brokerIds.stream()
         .map(brokerId -> new ConfigResource(ConfigResource.Type.BROKER, Integer.toString(brokerId)))
         .collect(toList());
-    return toMono(client.describeConfigs(resources).all())
+    return toMono(client.describeConfigs(
+            resources, new DescribeConfigsOptions().includeSynonyms(includeSynonyms)).all())
         // some kafka backends don't support broker's configs retrieval,
         // and throw various exceptions on describeConfigs() call
         .onErrorResume(th -> th instanceof InvalidRequestException // MSK Serverless
@@ -322,7 +352,7 @@ public class ReactiveAdminClient implements Closeable {
             })
         // there are situations when kafbat-ui user has no DESCRIBE_CONFIGS permission on cluster
         .onErrorResume(ClusterAuthorizationException.class, th -> {
-          log.trace("AuthorizationException while getting configs for brokers {}", brokerIds, th);
+          log.debug("AuthorizationException while getting configs for brokers {}", brokerIds, th);
           return Mono.just(Map.of());
         })
         // catching all remaining exceptions, but logging on WARN level
@@ -341,6 +371,132 @@ public class ReactiveAdminClient implements Closeable {
    */
   public Mono<Map<Integer, List<ConfigEntry>>> loadBrokersConfig(List<Integer> brokerIds) {
     return loadBrokersConfig(client, brokerIds);
+  }
+
+  public Mono<Set<String>> loadSuperUsers() {
+    return describeCluster()
+        // Do one describeConfigs request per broker rather than one request containing every broker.
+        // On ZooKeeper-mode Kafka a single unavailable/unauthorized broker can make a batch request
+        // return an empty result. The broker-config page proves individual requests work, and this
+        // lets us still discover super.users from any healthy broker.
+        .flatMapMany(description -> Flux.fromIterable(description.getNodes())
+            .flatMap(node -> loadBrokersConfig(client, List.of(node.id()), true).flatMapMany(configs ->
+                Flux.fromIterable(configs.values())), SUPER_USER_CONFIG_CONCURRENCY)
+            // Collect before filtering: the diagnostic below needs to tell "the brokers returned no
+            // configs at all" (unsupported backend / missing DESCRIBE_CONFIGS) apart from "the
+            // cluster simply has no super.users set". Both used to surface as the same empty set,
+            // which made a silently disabled filter indistinguishable from a cluster without
+            // super users.
+            .collectList()
+            .flatMapMany(this::logSuperUserDiscovery))
+        .flatMapIterable(configs -> configs)
+        .filter(config -> SUPER_USERS_CONFIG.equals(config.name()))
+        // Kafka 2.4 can expose a static broker property as a ConfigEntry whose direct value is
+        // null, while the actual value is present in its config synonyms. This is also why the
+        // broker-config screen can show server.properties although config.value() is null here.
+        // Do not use Reactor map with a nullable value: map rejects null and turns this harmless
+        // representation into a 500 response.
+        .flatMap(config -> Flux.concat(
+            Mono.justOrEmpty(config.value()),
+            Flux.fromIterable(Optional.ofNullable(config.synonyms()).orElse(List.of()))
+                // ConfigSynonym.value() can also be null. Reactor map must never receive
+                // nullable mapper results, so preserve only actual values at this boundary.
+                .flatMap(synonym -> Mono.justOrEmpty(synonym.value()))))
+        .flatMap(value -> Flux.fromArray(value.split(";")))
+        .map(String::trim)
+        .filter(value -> !value.isEmpty())
+        .collect(Collectors.toSet())
+        .map(discovered -> mergeWithConfigured(configuredSuperUsers, discovered))
+        // Per-request detail: this runs on every ACL/user listing, so do not log the principals
+        // themselves at a level that is on by default.
+        .doOnNext(superUsers -> log.debug("Loaded {} Kafka super users: {}", superUsers.size(), superUsers))
+        // Hiding system principals is a UI safety feature. It must never make ACL/User listing
+        // unavailable when broker config inspection is unsupported or partially authorized, but the
+        // principals the operator declared explicitly still have to be protected.
+        .onErrorResume(error -> {
+          log.warn("Unable to load Kafka super users from broker configs; protecting the {} principal(s) "
+              + "declared in the cluster config", configuredSuperUsers.size(), error);
+          return Mono.just(Set.copyOf(configuredSuperUsers));
+        });
+  }
+
+  /**
+   * Reports what super user discovery actually saw, then passes the per-broker configs through
+   * unchanged. Without this, "no broker configs were readable", "the broker redacted super.users"
+   * and "the cluster has no super.users" all end up as the same empty protected-principal set, and
+   * the UI silently stops filtering while looking like it works.
+   */
+  private Flux<List<ConfigEntry>> logSuperUserDiscovery(List<List<ConfigEntry>> brokerConfigs) {
+    long readable = brokerConfigs.stream().filter(configs -> !configs.isEmpty()).count();
+    List<ConfigEntry> superUsersEntries = brokerConfigs.stream()
+        .flatMap(List::stream)
+        .filter(config -> SUPER_USERS_CONFIG.equals(config.name()))
+        .toList();
+
+    log.debug("Super user discovery: {} of {} broker(s) returned configs, {} '{}' entr{} found",
+        readable, brokerConfigs.size(), superUsersEntries.size(), SUPER_USERS_CONFIG,
+        superUsersEntries.size() == 1 ? "y" : "ies");
+
+    if (log.isDebugEnabled()) {
+      long totalEntries = brokerConfigs.stream().mapToLong(List::size).sum();
+      long nullValued = brokerConfigs.stream().flatMap(List::stream).filter(c -> c.value() == null).count();
+      // Distinguishes "this backend returns config keys without values at all" from "only the super
+      // user list is withheld", which need different answers.
+      log.debug("  {} of {} broker config entries have a null value; '{}' entries: {}, carrying a usable "
+              + "value: {}",
+          nullValued, totalEntries, SUPER_USERS_CONFIG, superUsersEntries.size(),
+          superUsersEntries.stream().filter(ReactiveAdminClient::carriesValue).count());
+    }
+
+    if (superUsersUnavailableWarned.compareAndSet(false, true)) {
+      String reason = superUsersUnavailableReason(readable, brokerConfigs.size(), superUsersEntries);
+      if (reason != null) {
+        // Once per client: this runs on every ACL/user listing and the operator only needs to learn
+        // once why the filter cannot work on this cluster.
+        log.warn("Kafka super users could not be discovered automatically, so system principals are only "
+            + "hidden when they are listed in kafka.clusters[].superUsers ({} configured). Reason: {}",
+            configuredSuperUsers.size(), reason);
+      }
+    }
+    return Flux.fromIterable(brokerConfigs);
+  }
+
+  static Set<String> mergeWithConfigured(Set<String> configured, Set<String> discovered) {
+    return Stream.concat(configured.stream(), discovered.stream()).collect(Collectors.toSet());
+  }
+
+  /**
+   * Expands the configured principals into individual ones. Kafka writes super.users as a single
+   * semicolon separated value, so operators naturally configure "User:admin;User:other" as one
+   * setting; that has to end up as two principals, or the set never matches anything the broker
+   * reports and the filter silently does nothing. Commas are accepted as well because they are just
+   * as natural to type and the cluster config UI uses them.
+   */
+  static Set<String> parseConfiguredSuperUsers(Collection<String> configured) {
+    return configured.stream()
+        .filter(Objects::nonNull)
+        .flatMap(value -> Arrays.stream(value.split("[,;]")))
+        .map(String::trim)
+        .filter(principal -> !principal.isEmpty())
+        .collect(Collectors.toSet());
+  }
+
+  static String superUsersUnavailableReason(long readable, int brokerCount, List<ConfigEntry> entries) {
+    if (readable == 0 && brokerCount > 0) {
+      return "none of the " + brokerCount + " broker(s) returned any config; the kafbat-ui principal "
+          + "probably lacks DESCRIBE_CONFIGS, or the Kafka distribution does not expose broker configs";
+    }
+    if (!entries.isEmpty() && entries.stream().noneMatch(ReactiveAdminClient::carriesValue)) {
+      return "the brokers report '" + SUPER_USERS_CONFIG + "' with a redacted value, because Kafka treats "
+          + "it as a sensitive config and strips it from both the value and its synonyms";
+    }
+    return null;
+  }
+
+  static boolean carriesValue(ConfigEntry entry) {
+    return entry.value() != null
+        || Optional.ofNullable(entry.synonyms()).orElse(List.of()).stream()
+            .anyMatch(synonym -> synonym.value() != null);
   }
 
   public Mono<Map<String, TopicDescription>> describeTopics() {
@@ -427,9 +583,12 @@ public class ReactiveAdminClient implements Closeable {
     return describeClusterImpl(client, getClusterFeatures());
   }
 
-  private static Mono<ClusterDescription> describeClusterImpl(AdminClient client, Set<SupportedFeature> features) {
+  private static Mono<ClusterDescription> describeClusterImpl(AdminClient client,
+                                                              Set<SupportedFeature> features
+  ) {
     boolean includeAuthorizedOperations =
         features.contains(SupportedFeature.DESCRIBE_CLUSTER_INCLUDE_AUTHORIZED_OPERATIONS);
+
     DescribeClusterResult result = client.describeCluster(
         new DescribeClusterOptions().includeAuthorizedOperations(includeAuthorizedOperations));
     var allOfFuture = KafkaFuture.allOf(
@@ -437,10 +596,10 @@ public class ReactiveAdminClient implements Closeable {
     return toMono(allOfFuture).then(
         Mono.fromCallable(() ->
             new ClusterDescription(
-              result.controller().get(),
-              result.clusterId().get(),
-              result.nodes().get(),
-              result.authorizedOperations().get()
+                result.controller().get(),
+                result.clusterId().get(),
+                result.nodes().get(),
+                result.authorizedOperations().get()
             )
         )
     );
@@ -616,8 +775,8 @@ public class ReactiveAdminClient implements Closeable {
 
   @VisibleForTesting
   static Set<TopicPartition> filterPartitionsWithLeaderCheck(Collection<TopicDescription> topicDescriptions,
-                                                              Predicate<TopicPartition> partitionPredicate,
-                                                              boolean failOnUnknownLeader) {
+                                                             Predicate<TopicPartition> partitionPredicate,
+                                                             boolean failOnUnknownLeader) {
     var goodPartitions = new HashSet<TopicPartition>();
     for (TopicDescription description : topicDescriptions) {
       var goodTopicPartitions = new ArrayList<TopicPartition>();
@@ -690,6 +849,34 @@ public class ReactiveAdminClient implements Closeable {
     return toMono(client.deleteAcls(filters).all()).then();
   }
 
+  public Mono<Map<String, UserScramCredentialsDescription>> describeUserScramCredentials() {
+    return toMono(client.describeUserScramCredentials().all());
+  }
+
+  public Mono<Void> alterUserScramCredentials(List<UserScramCredentialAlteration> alterations) {
+    return toMono(client.alterUserScramCredentials(alterations).all());
+  }
+
+  public Mono<Void> upsertUserScramCredentials(String username, Collection<ScramMechanism> mechanisms,
+                                                String password) {
+    var alterations = mechanisms.stream()
+        .map(mechanism -> (UserScramCredentialAlteration) new UserScramCredentialUpsertion(
+            username,
+            new ScramCredentialInfo(mechanism, minimumIterations(mechanism)),
+            password
+        ))
+        .toList();
+    return alterUserScramCredentials(alterations);
+  }
+
+  public Mono<Void> deleteUserScramCredential(String username, ScramMechanism mechanism) {
+    return alterUserScramCredentials(List.of(new UserScramCredentialDeletion(username, mechanism)));
+  }
+
+  private int minimumIterations(ScramMechanism mechanism) {
+    return ScramMechanisms.minimumIterations(mechanism);
+  }
+
   public Mono<Void> updateBrokerConfigByName(Integer brokerId, String name, String value) {
     ConfigResource cr = new ConfigResource(ConfigResource.Type.BROKER, String.valueOf(brokerId));
     AlterConfigOp op = new AlterConfigOp(new ConfigEntry(name, value), AlterConfigOp.OpType.SET);
@@ -713,6 +900,10 @@ public class ReactiveAdminClient implements Closeable {
 
   public Mono<Void> alterClientQuota(ClientQuotaAlteration alteration) {
     return toMono(client.alterClientQuotas(List.of(alteration)).all());
+  }
+
+  public Mono<QuorumInfo> describeMetadataQuorum() {
+    return toMono(client.describeMetadataQuorum().quorumInfo());
   }
 
 

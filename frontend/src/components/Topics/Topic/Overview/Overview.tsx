@@ -14,7 +14,10 @@ import ActionsCell from './ActionsCell';
 
 const Overview: React.FC = () => {
   const { clusterName, topicName } = useAppParams<RouteParamsClusterTopic>();
-  const { data } = useTopicDetails({ clusterName, topicName });
+  const { data, isFetching } = useTopicDetails(
+    { clusterName, topicName },
+    { refetchInterval: 5000 }
+  );
 
   const messageCount = React.useMemo(
     () =>
@@ -135,6 +138,34 @@ const Overview: React.FC = () => {
           </Metrics.Indicator>
           <Metrics.Indicator label="Segment Count">
             {data?.segmentCount}
+          </Metrics.Indicator>
+          <Metrics.Indicator
+            label="Production"
+            title="Bytes written per second (15-min trailing average from Kafka JMX)"
+            fetching={isFetching}
+          >
+            <BytesFormatted value={data?.bytesInPerSec} />
+            /s
+          </Metrics.Indicator>
+          <Metrics.Indicator
+            label="Consumption"
+            title="Bytes read per second (15-min trailing average from Kafka JMX)"
+            fetching={isFetching}
+          >
+            <BytesFormatted value={data?.bytesOutPerSec} />
+            /s
+          </Metrics.Indicator>
+          <Metrics.Indicator
+            label="Message Rate"
+            title="Messages written per second (15-min trailing average from Kafka JMX)"
+            fetching={isFetching}
+          >
+            <span>
+              {data?.messagesInPerSec !== undefined
+                ? Math.round(data.messagesInPerSec)
+                : 0}
+            </span>
+            /s
           </Metrics.Indicator>
           <Metrics.Indicator label="Clean Up Policy">
             <Tag color="gray">{data?.cleanUpPolicy || 'Unknown'}</Tag>

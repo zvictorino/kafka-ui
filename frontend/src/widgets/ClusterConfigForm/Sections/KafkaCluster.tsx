@@ -103,6 +103,19 @@ const KafkaCluster: React.FC = () => {
           </div>
         </S.GroupFieldWrapper>
       </div>
+      <Input
+        label="ZooKeeper Connect"
+        type="text"
+        name="zookeeperConnect"
+        hint="Required to manage SCRAM users on ZooKeeper-mode Kafka clusters"
+      />
+      <Input
+        label="Super Users"
+        type="text"
+        name="superUsers"
+        hint="Kafka principals to hide from ACL and user listings (e.g. User:admin), separated by commas or semicolons. Kafka redacts super.users, so these cannot be discovered from the brokers."
+        placeholder="User:admin, User:another"
+      />
       <hr />
       <SectionHeader
         title="Truststore"

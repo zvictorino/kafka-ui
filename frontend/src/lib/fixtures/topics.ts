@@ -18,6 +18,8 @@ export const internalTopicPayload = {
   segmentCount: 1,
   underReplicatedPartitions: 0,
   messagesCount: 0,
+  bytesInPerSec: 0,
+  messagesInPerSec: 0,
   partitions: [
     {
       partition: 0,
@@ -40,6 +42,9 @@ export const externalTopicPayload = {
   segmentCount: 1,
   underReplicatedPartitions: 0,
   messagesCount: 0,
+  bytesInPerSec: 2048,
+  bytesOutPerSec: 4096,
+  messagesInPerSec: 12,
   partitions: [
     {
       partition: 0,

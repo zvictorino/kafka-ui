@@ -47,6 +47,8 @@ public class ClustersProperties {
 
   Csv csv = new Csv();
 
+  Boolean messageRelativeTimestamp;
+
   @Data
   public static class Csv {
     String lineDelimeter = "crlf";
@@ -73,11 +75,29 @@ public class ClustersProperties {
     @NotBlank(message = "field bootstrapServers for for cluster could not be blank")
     String bootstrapServers;
 
+    /**
+     * Optional ZooKeeper connection string, including its Kafka chroot when one is used.
+     * A non-empty value marks this cluster as ZooKeeper based for SCRAM user management.
+     */
+    String zookeeperConnect;
+
+    /**
+     * Kafka principals to protect as super users, in addition to whatever the brokers report.
+     * Kafka marks {@code super.users} as a sensitive config and redacts its value, so on many
+     * clusters the UI cannot discover super users by itself; listing them here is what allows
+     * system principals to be hidden from ACL and user listings.
+     *
+     * <p>Accepts either one principal per entry or the separators used by Kafka's own
+     * {@code super.users} form, e.g. {@code superUsers: User:admin;User:other}.
+     */
+    List<String> superUsers;
+
     TruststoreConfig ssl;
 
     String schemaRegistry;
     SchemaRegistryAuth schemaRegistryAuth;
     KeystoreConfig schemaRegistrySsl;
+    String schemaRegistryTopicSubjectSuffix = "-value";
 
     String ksqldbServer;
     KsqldbServerAuth ksqldbServerAuth;
@@ -155,6 +175,7 @@ public class ClustersProperties {
     String password;
     String keystoreLocation;
     String keystorePassword;
+    String consumerNamePattern = "connect-%s";
   }
 
   @Data
@@ -162,6 +183,20 @@ public class ClustersProperties {
   public static class SchemaRegistryAuth {
     String username;
     String password;
+    OauthConfig oauth;
+  }
+
+  @Data
+  @ToString(exclude = {"clientSecret"})
+  public static class OauthConfig {
+    String tokenUrl;
+    String clientId;
+    String clientSecret;
+    String[] scopes;
+
+    Boolean tokenCacheEnabled = true;
+    Duration tokenRefreshBuffer = Duration.ofSeconds(60);
+    Integer maxRetries = 1;  // Max retries on 401 errors
   }
 
   @Data
@@ -225,6 +260,7 @@ public class ClustersProperties {
     Boolean consoleAuditEnabled;
     LogLevel level = LogLevel.ALTER_ONLY;
     Map<String, String> auditTopicProperties;
+    Boolean requireAuditTopic;
 
     public enum LogLevel {
       ALL,
@@ -324,12 +360,11 @@ public class ClustersProperties {
     for (Cluster clusterProperties : clusters) {
       if (!StringUtils.hasText(clusterProperties.getName())) {
         throw new IllegalStateException(
-            "Application config isn't valid. "
-                + "Cluster names should be provided in case of multiple clusters present");
+          "Application config isn't valid. " + "Cluster names should be provided in case of multiple clusters present"
+        );
       }
       if (!clusterNames.add(clusterProperties.getName())) {
-        throw new IllegalStateException(
-            "Application config isn't valid. Two clusters can't have the same name");
+        throw new IllegalStateException("Application config isn't valid. Two clusters can't have the same name");
       }
     }
   }

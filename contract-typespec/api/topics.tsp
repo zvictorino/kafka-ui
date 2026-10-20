@@ -1,6 +1,7 @@
 import "@typespec/openapi";
 import "./responses.tsp";
 import "./models.tsp";
+import "./acls.tsp";
 
 namespace Api;
 
@@ -165,7 +166,16 @@ interface TopicsApi {
   connectors(
     @path clusterName: string,
     @path topicName: string
-  ) : FullConnectorInfo[]
+  ) : FullConnectorInfo[];
+
+  @get
+  @route("/{topicName}/acls")
+  @summary("listTopicAcls")
+  @operationId("listTopicAcls")
+  listTopicAcls(
+    @path clusterName: string,
+    @path topicName: string,
+  ): KafkaAcl[];
 }
 
 model TopicsResponse {
@@ -179,7 +189,9 @@ enum TopicColumnsToSort {
   TOTAL_PARTITIONS,
   REPLICATION_FACTOR,
   SIZE,
-  MESSAGES_COUNT
+  MESSAGES_COUNT,
+  PRODUCTION,
+  MESSAGES_IN_PER_SEC
 }
 
 model Topic {
@@ -193,6 +205,7 @@ model Topic {
   segmentCount?: int32;
   bytesInPerSec?: float64;
   bytesOutPerSec?: float64;
+  messagesInPerSec?: float64;
   underReplicatedPartitions?: int32;
   messagesCount?: int64 | null;
   cleanUpPolicy?: CleanUpPolicy;
@@ -276,6 +289,7 @@ model TopicDetails {
   inSyncReplicas?: int32;
   bytesInPerSec?: float64;
   bytesOutPerSec?: float64;
+  messagesInPerSec?: float64;
   segmentSize?: int64;
   segmentCount?: int32;
   underReplicatedPartitions?: int32;
