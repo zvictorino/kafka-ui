@@ -61,11 +61,11 @@ const ForConsumersForm: FC<AclDetailedFormProps> = ({ formRef }) => {
       <S.Form ref={formRef} onSubmit={methods.handleSubmit(onSubmit)}>
         <hr />
         <S.Field>
-          <S.Label htmlFor="principal">Principal</S.Label>
+          <S.Label htmlFor="username">Username</S.Label>
           <Input
-            name="principal"
-            id="principal"
-            placeholder="Principal"
+            name="username"
+            id="username"
+            placeholder="Kafka username"
             withError
           />
         </S.Field>

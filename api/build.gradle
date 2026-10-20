@@ -53,6 +53,7 @@ dependencies {
         // TODO: Remove once client would fix CVE
         exclude group: "org.lz4", module: "lz4-java"
     }
+    implementation libs.curator.framework
 
     implementation libs.apache.avro
     implementation libs.apache.commons
@@ -237,4 +238,3 @@ if (includeFrontend) {
         dependsOn(":frontend:buildFrontend")
     }
 }
-

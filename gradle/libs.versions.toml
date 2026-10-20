@@ -10,6 +10,7 @@ apache-commons-lang3 = '3.20.0'
 apache-commons-text = '1.15.0'
 apache-commons-pool2 = '2.13.0'
 apache-datasketches = '3.1.0'
+curator = '5.7.1'
 apache-commons-compress = '1.28.0'
 
 assertj = '3.25.3'
@@ -77,6 +78,7 @@ mapstruct-processor = { module = 'org.mapstruct:mapstruct-processor', version.re
 jakarta-annotation-api = { module = 'jakarta.annotation:jakarta.annotation-api', version.ref = 'jakarta-annotation-api' }
 jackson-databind-nullable = { module = 'org.openapitools:jackson-databind-nullable', version.ref = 'jackson-databind-nullable' }
 kafka-clients = { module = 'org.apache.kafka:kafka-clients', version.ref = 'confluent-ccs' }
+curator-framework = { module = 'org.apache.curator:curator-framework', version.ref = 'curator' }
 
 apache-commons = { module = 'org.apache.commons:commons-lang3', version.ref = 'apache-commons-lang3' }
 apache-commons-text = { module = 'org.apache.commons:commons-text', version.ref = 'apache-commons-text' }

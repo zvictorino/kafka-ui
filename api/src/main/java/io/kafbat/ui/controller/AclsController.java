@@ -72,6 +72,7 @@ public  class AclsController extends AbstractController implements AclsApi, McpT
                                                           KafkaAclNamePatternTypeDTO namePatternTypeDto,
                                                           String search,
                                                           Boolean fts,
+                                                          Boolean showSystemUsers,
                                                           ServerWebExchange exchange) {
     AccessContext context = AccessContext.builder()
         .cluster(clusterName)
@@ -92,7 +93,8 @@ public  class AclsController extends AbstractController implements AclsApi, McpT
     return validateAccess(context).then(
         Mono.just(
             ResponseEntity.ok(
-                aclsService.listAcls(getCluster(clusterName), filter, search, fts)
+                aclsService.listAcls(getCluster(clusterName), filter, search, fts,
+                    Boolean.TRUE.equals(showSystemUsers))
                     .map(ClusterMapper::toKafkaAclDto)))
     ).doOnEach(sig -> audit(context, sig));
   }
@@ -104,7 +106,7 @@ public  class AclsController extends AbstractController implements AclsApi, McpT
                                                   KafkaAclNamePatternTypeDTO namePatternType,
                                                   String search, Boolean fts,
                                                   ServerWebExchange exchange) {
-    return listAcls(clusterName, resourceType, resourceName, namePatternType, search, fts, exchange)
+    return listAcls(clusterName, resourceType, resourceName, namePatternType, search, fts, false, exchange)
         .flatMap(this::responseToCsv);
   }
 

@@ -20,6 +20,7 @@ tags:
   - name: Schemas
   - name: Kafka Connect
   - name: Ksql
+  - name: KafkaUsers
   - name: ClientQuotas
   - name: Authorization
   - name: Graphs
@@ -90,6 +91,12 @@ paths:
             type: string
           explode: false
         - name: fts
+          in: query
+          required: false
+          schema:
+            type: boolean
+          explode: false
+        - name: showSystemUsers
           in: query
           required: false
           schema:
@@ -2834,6 +2841,116 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MessageFilterRegistration'
+  /api/clusters/{clusterName}/users:
+    get:
+      operationId: listKafkaUsers
+      summary: List Kafka SCRAM users
+      parameters:
+        - name: clusterName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: showSystemUsers
+          in: query
+          required: false
+          schema:
+            type: boolean
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KafkaUser'
+      tags:
+        - KafkaUsers
+    post:
+      operationId: upsertKafkaUser
+      summary: Create a Kafka SCRAM user or reset credentials for selected mechanisms
+      parameters:
+        - name: clusterName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - KafkaUsers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertKafkaUser'
+  /api/clusters/{clusterName}/users/{username}:
+    delete:
+      operationId: deleteKafkaUser
+      summary: Delete all Kafka SCRAM credentials and ACLs for a user
+      parameters:
+        - name: clusterName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiNotFoundResponse'
+      tags:
+        - KafkaUsers
+  /api/clusters/{clusterName}/users/{username}/credentials/{mechanism}:
+    delete:
+      operationId: deleteKafkaUserCredential
+      summary: Delete one Kafka SCRAM credential
+      parameters:
+        - name: clusterName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mechanism
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiNotFoundResponse'
+      tags:
+        - KafkaUsers
   /api/config:
     get:
       operationId: getCurrentConfig
@@ -3289,6 +3406,16 @@ components:
                         type: string
                       bootstrapServers:
                         type: string
+                      zookeeperConnect:
+                        type: string
+                      superUsers:
+                        type: array
+                        items:
+                          type: string
+                        description: |-
+                          Kafka principals (for example "User:admin") to protect as super users. Needed because
+                          Kafka marks super.users as a sensitive config and redacts its value, so the UI cannot
+                          discover super users from the brokers on many clusters.
                       ssl:
                         type: object
                         properties:
@@ -4507,6 +4634,18 @@ components:
         - TRANSACTIONAL_ID
         - DELEGATION_TOKEN
         - USER
+    KafkaUser:
+      type: object
+      required:
+        - username
+        - mechanisms
+      properties:
+        username:
+          type: string
+        mechanisms:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScramMechanism'
     KsqlCommandV2:
       type: object
       required:
@@ -4929,6 +5068,11 @@ components:
         - AVRO
         - JSON
         - PROTOBUF
+    ScramMechanism:
+      type: string
+      enum:
+        - SCRAM-SHA-256
+        - SCRAM-SHA-512
     SeekDirection:
       type: string
       enum:
@@ -5521,6 +5665,21 @@ components:
       properties:
         location:
           type: string
+    UpsertKafkaUser:
+      type: object
+      required:
+        - username
+        - password
+        - mechanisms
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        mechanisms:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScramMechanism'
     UserInfo:
       type: object
       required:

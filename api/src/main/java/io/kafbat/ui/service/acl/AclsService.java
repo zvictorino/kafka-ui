@@ -16,6 +16,7 @@ import static org.apache.kafka.common.resource.ResourceType.TRANSACTIONAL_ID;
 
 import com.google.common.collect.Sets;
 import io.kafbat.ui.config.ClustersProperties;
+import io.kafbat.ui.exception.ValidationException;
 import io.kafbat.ui.model.CreateConsumerAclDTO;
 import io.kafbat.ui.model.CreateProducerAclDTO;
 import io.kafbat.ui.model.CreateStreamAppAclDTO;
@@ -26,9 +27,11 @@ import io.kafbat.ui.service.index.AclBindingNgramFilter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,14 +56,15 @@ public class AclsService {
   private final ClustersProperties clustersProperties;
 
   private void validatePrincipal(String principal) {
-    if (principal == null || principal.isEmpty()) {
+    if (principal == null || principal.isBlank() || !principal.equals(principal.trim())) {
       throw new IllegalArgumentException(
           "expected a string in format principalType:principalName but got " + principal);
     }
 
     String[] split = principal.split(":", 2);
 
-    if (split.length != 2) {
+    if (split.length != 2 || split[0].isBlank() || split[1].isBlank()
+        || !split[0].equals(split[0].trim()) || !split[1].equals(split[1].trim())) {
       throw new IllegalArgumentException(
           "expected a string in format principalType:principalName but got " + principal);
     }
@@ -73,6 +77,7 @@ public class AclsService {
   }
 
   private Mono<Void> createAclsWithLogging(ReactiveAdminClient ac, Collection<AclBinding> bindings) {
+    bindings.forEach(binding -> validatePrincipal(binding.entry().principal()));
     bindings.forEach(b -> log.info("CREATING ACL: [{}]", AclCsv.createAclString(b)));
     return ac.createAcls(bindings)
         .doOnSuccess(v -> bindings.forEach(b -> log.info("ACL CREATED: [{}]", AclCsv.createAclString(b))));
@@ -82,17 +87,60 @@ public class AclsService {
     var aclString = AclCsv.createAclString(aclBinding);
     log.info("DELETING ACL: [{}]", aclString);
     return adminClientService.get(cluster)
-        .flatMap(ac -> ac.deleteAcls(List.of(aclBinding)))
+        .flatMap(ac -> ac.loadSuperUsers()
+            .flatMap(superUsers -> {
+              if (superUsers.contains(aclBinding.entry().principal())) {
+                return Mono.error(new ValidationException(
+                    "ACL for Kafka super user cannot be deleted: " + aclBinding.entry().principal()));
+              }
+              return ac.deleteAcls(List.of(aclBinding));
+            }))
         .doOnSuccess(v -> log.info("ACL DELETED: [{}]", aclString));
+  }
+
+  public Mono<Void> deleteAclsForPrincipal(KafkaCluster cluster, String principal) {
+    validatePrincipal(principal);
+    return adminClientService.get(cluster)
+        .flatMap(ac -> ac.loadSuperUsers()
+            .flatMap(superUsers -> {
+              if (superUsers.contains(principal)) {
+                return Mono.error(new ValidationException(
+                    "ACLs for Kafka super user cannot be deleted: " + principal));
+              }
+              return ac.listAcls(ResourcePatternFilter.ANY)
+                  .flatMap(existing -> {
+                    List<AclBinding> bindings = existing.stream()
+                        .filter(binding -> principal.equals(binding.entry().principal()))
+                        .toList();
+                    if (bindings.isEmpty()) {
+                      return Mono.empty();
+                    }
+                    log.info("DELETING {} ACLs for principal [{}]", bindings.size(), principal);
+                    return ac.deleteAcls(bindings);
+                  });
+            }));
+  }
+
+  public Flux<AclBinding> listAcls(KafkaCluster cluster, ResourcePatternFilter filter, String principalSearch,
+                                   Boolean fts, boolean showSystemUsers) {
+    return adminClientService.get(cluster)
+      .flatMapMany(c -> showSystemUsers
+          // The super user set is only needed to hide those principals, so skip the per-broker
+          // broker-config lookups entirely when they are going to be shown anyway.
+          ? c.listAcls(filter).flatMapMany(Flux::fromIterable)
+          : c.listAcls(filter)
+              .zipWith(c.loadSuperUsers())
+              .flatMapMany(tuple -> Flux.fromIterable(tuple.getT1().stream()
+                  .filter(binding -> !tuple.getT2().contains(binding.entry().principal()))
+                  .toList())))
+      .collectList()
+      .flatMapMany(acls -> Flux.fromIterable(filter(acls, principalSearch, fts)))
+      .sort(Comparator.comparing(AclBinding::toString));  //sorting to keep stable order on different calls
   }
 
   public Flux<AclBinding> listAcls(KafkaCluster cluster, ResourcePatternFilter filter, String principalSearch,
                                    Boolean fts) {
-    return adminClientService.get(cluster)
-      .flatMap(c -> c.listAcls(filter))
-      .map(lst -> filter(new ArrayList<>(lst), principalSearch, fts))
-      .flatMapMany(Flux::fromIterable)
-      .sort(Comparator.comparing(AclBinding::toString));  //sorting to keep stable order on different calls
+    return listAcls(cluster, filter, principalSearch, fts, false);
   }
 
   private List<AclBinding> filter(List<AclBinding> acls, String principalSearch, Boolean fts) {
@@ -103,24 +151,34 @@ public class AclsService {
 
   public Mono<Void> syncAclWithAclCsv(KafkaCluster cluster, String csv) {
     return adminClientService.get(cluster)
-        .flatMap(ac -> ac.listAcls(ResourcePatternFilter.ANY).flatMap(existingAclList -> {
-          var existingSet = Set.copyOf(existingAclList);
-          var newAcls = Set.copyOf(AclCsv.parseCsv(csv));
-          var toDelete = Sets.difference(existingSet, newAcls);
-          var toAdd = Sets.difference(newAcls, existingSet);
-          logAclSyncPlan(cluster, toAdd, toDelete);
-          if (toAdd.isEmpty() && toDelete.isEmpty()) {
-            return Mono.empty();
-          }
-          log.info("Starting new ACLs creation");
-          return ac.createAcls(toAdd)
-              .doOnSuccess(v -> {
-                log.info("{} new ACLs created", toAdd.size());
-                log.info("Starting ACLs deletion");
-              })
-              .then(ac.deleteAcls(toDelete)
-                  .doOnSuccess(v -> log.info("{} ACLs deleted", toDelete.size())));
-        }));
+        .flatMap(ac -> ac.loadSuperUsers().flatMap(superUsers -> ac.listAcls(ResourcePatternFilter.ANY)
+            .flatMap(existingAclList -> {
+              var existingSet = Set.copyOf(existingAclList);
+              var newAcls = Set.copyOf(AclCsv.parseCsv(csv));
+              var missingAcls = Sets.difference(existingSet, newAcls);
+              // Single-ACL deletion refuses to remove a super user's ACL. A sync must not become a
+              // back door around that guard, so protected bindings are dropped from the deletion set.
+              var toDelete = missingAcls.stream()
+                  .filter(binding -> !superUsers.contains(binding.entry().principal()))
+                  .collect(Collectors.toCollection(LinkedHashSet::new));
+              if (toDelete.size() != missingAcls.size()) {
+                log.warn("Skipping deletion of {} ACL(s) that belong to Kafka super users",
+                    missingAcls.size() - toDelete.size());
+              }
+              var toAdd = Sets.difference(newAcls, existingSet);
+              logAclSyncPlan(cluster, toAdd, toDelete);
+              if (toAdd.isEmpty() && toDelete.isEmpty()) {
+                return Mono.empty();
+              }
+              log.info("Starting new ACLs creation");
+              return ac.createAcls(toAdd)
+                  .doOnSuccess(v -> {
+                    log.info("{} new ACLs created", toAdd.size());
+                    log.info("Starting ACLs deletion");
+                  })
+                  .then(ac.deleteAcls(toDelete)
+                      .doOnSuccess(v -> log.info("{} ACLs deleted", toDelete.size())));
+            })));
   }
 
   private void logAclSyncPlan(KafkaCluster cluster, Set<AclBinding> toBeAdded, Set<AclBinding> toBeDeleted) {

@@ -9,6 +9,7 @@ import io.kafbat.ui.service.masking.DataMasking;
 import io.kafbat.ui.service.metrics.scrape.MetricsScraper;
 import io.kafbat.ui.sr.api.KafkaSrClientApi;
 import io.kafbat.ui.util.ReactiveFailover;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import lombok.AccessLevel;
@@ -25,6 +26,8 @@ public class KafkaCluster {
   private final String name;
   private final String version;
   private final String bootstrapServers;
+  private final String zookeeperConnect;
+  private final List<String> superUsers;
   private final Properties properties;
   private final Properties consumerProperties;
   private final Properties producerProperties;

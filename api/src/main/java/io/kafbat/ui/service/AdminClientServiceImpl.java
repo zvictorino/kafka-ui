@@ -54,7 +54,7 @@ public class AdminClientServiceImpl implements AdminClientService {
       );
       return AdminClient.create(properties);
     }).subscribeOn(Schedulers.boundedElastic())
-        .flatMap(ac -> ReactiveAdminClient.create(ac, clustersProperties.getAdminClient())
+        .flatMap(ac -> ReactiveAdminClient.create(ac, clustersProperties.getAdminClient(), cluster.getSuperUsers())
             .doOnError(th -> ac.close())
         )
         .onErrorMap(th -> new IllegalStateException(

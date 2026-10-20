@@ -77,6 +77,8 @@ public class KafkaClusterFactory {
 
     builder.name(clusterProperties.getName());
     builder.bootstrapServers(clusterProperties.getBootstrapServers());
+    builder.zookeeperConnect(clusterProperties.getZookeeperConnect());
+    builder.superUsers(Optional.ofNullable(clusterProperties.getSuperUsers()).orElseGet(List::of));
     builder.properties(convertProperties(clusterProperties.getProperties()));
     builder.consumerProperties(convertProperties(clusterProperties.getConsumerProperties()));
     builder.producerProperties(convertProperties(clusterProperties.getProducerProperties()));

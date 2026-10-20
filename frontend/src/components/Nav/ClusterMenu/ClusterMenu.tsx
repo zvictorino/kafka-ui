@@ -5,6 +5,7 @@ import MenuTab from 'components/Nav/Menu/MenuTab';
 import MenuItem from 'components/Nav/Menu/MenuItem';
 import {
   clusterACLPath,
+  clusterUsersPath,
   clusterBrokersPath,
   clusterConnectsPath,
   clusterConnectorsPath,
@@ -117,11 +118,18 @@ const ClusterMenu: FC<ClusterMenuProps> = ({
           )}
           {(hasFeatureConfigured(ClusterFeaturesEnum.KAFKA_ACL_VIEW) ||
             hasFeatureConfigured(ClusterFeaturesEnum.KAFKA_ACL_EDIT)) && (
-            <MenuItem
-              isActive={getIsMenuItemActive(clusterACLPath(name))}
-              to={clusterACLPath(name)}
-              title="ACL"
-            />
+            <>
+              <MenuItem
+                isActive={getIsMenuItemActive(clusterACLPath(name))}
+                to={clusterACLPath(name)}
+                title="ACL"
+              />
+              <MenuItem
+                isActive={getIsMenuItemActive(clusterUsersPath(name))}
+                to={clusterUsersPath(name)}
+                title="Users"
+              />
+            </>
           )}
         </S.List>
       )}

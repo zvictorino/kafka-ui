@@ -330,7 +330,11 @@ export const clusterNewConfigPath = `/ui/clusters/${clusterNewConfigRelativePath
 
 // ACL
 export const clusterAclRelativePath = 'acl';
+export const clusterUsersRelativePath = 'users';
 export const clusterAclNewRelativePath = 'create-new-acl';
 export const clusterACLPath = (
   clusterName: ClusterName = RouteParams.clusterName
 ) => `${clusterPath(clusterName)}/${clusterAclRelativePath}`;
+export const clusterUsersPath = (
+  clusterName: ClusterName = RouteParams.clusterName
+) => `${clusterPath(clusterName)}/${clusterUsersRelativePath}`;

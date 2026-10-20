@@ -53,6 +53,11 @@ export const transformFormDataToPayload = (data: ClusterConfigFormValues) => {
     bootstrapServers: data.bootstrapServers
       .map(({ host, port }) => `${host}:${port}`)
       .join(','),
+    zookeeperConnect: data.zookeeperConnect || undefined,
+    superUsers: data.superUsers
+      ?.split(/[,;]/)
+      .map((principal) => principal.trim())
+      .filter(Boolean),
     readOnly: data.readOnly,
   };
 

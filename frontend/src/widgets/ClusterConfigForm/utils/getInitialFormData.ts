@@ -57,6 +57,8 @@ export const getInitialFormData = (
     name: payload.name as string,
     readOnly: !!payload.readOnly,
     bootstrapServers: parseBootstrapServers(payload.bootstrapServers),
+    zookeeperConnect: payload.zookeeperConnect,
+    superUsers: payload.superUsers?.join(','),
   };
 
   const { truststoreLocation, truststorePassword } = ssl || {};

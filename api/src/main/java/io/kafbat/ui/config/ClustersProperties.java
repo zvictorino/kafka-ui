@@ -75,6 +75,23 @@ public class ClustersProperties {
     @NotBlank(message = "field bootstrapServers for for cluster could not be blank")
     String bootstrapServers;
 
+    /**
+     * Optional ZooKeeper connection string, including its Kafka chroot when one is used.
+     * A non-empty value marks this cluster as ZooKeeper based for SCRAM user management.
+     */
+    String zookeeperConnect;
+
+    /**
+     * Kafka principals to protect as super users, in addition to whatever the brokers report.
+     * Kafka marks {@code super.users} as a sensitive config and redacts its value, so on many
+     * clusters the UI cannot discover super users by itself; listing them here is what allows
+     * system principals to be hidden from ACL and user listings.
+     *
+     * <p>Accepts either one principal per entry or the separators used by Kafka's own
+     * {@code super.users} form, e.g. {@code superUsers: User:admin;User:other}.
+     */
+    List<String> superUsers;
+
     TruststoreConfig ssl;
 
     String schemaRegistry;

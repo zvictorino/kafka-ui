@@ -54,6 +54,9 @@ export type ClusterConfigFormValues = {
   name: string;
   readOnly: boolean;
   bootstrapServers: BootstrapServer[];
+  zookeeperConnect?: string;
+  /** Comma-separated Kafka principals (e.g. "User:admin") to protect as super users. */
+  superUsers?: string;
   truststore?: {
     location: string;
     password: string;

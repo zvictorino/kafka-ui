@@ -20,10 +20,12 @@ export function useAcls(
     clusterName,
     search,
     fts,
+    showSystemUsers = false,
   }: {
     clusterName: ClusterName;
     search?: string;
     fts?: boolean;
+    showSystemUsers?: boolean;
   },
   options?: Omit<
     UseQueryOptions<KafkaAcl[], ServerResponse>,
@@ -31,8 +33,8 @@ export function useAcls(
   >
 ) {
   return useQuery<KafkaAcl[], ServerResponse>({
-    queryKey: ['clusters', clusterName, 'acls', { search, fts }],
-    queryFn: () => apiFetch(() => api.listAcls({ clusterName, search, fts })),
+    queryKey: ['clusters', clusterName, 'acls', { search, fts, showSystemUsers }],
+    queryFn: () => apiFetch(() => api.listAcls({ clusterName, search, fts, showSystemUsers })),
     placeholderData: (previousData) => previousData,
     ...options,
   });

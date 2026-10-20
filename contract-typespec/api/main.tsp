@@ -8,6 +8,7 @@ import "./schemas.tsp";
 import "./kafka-connect.tsp";
 import "./ksql.tsp";
 import "./acls.tsp";
+import "./users.tsp";
 import "./quotas.tsp";
 import "./auth.tsp";
 import "./config.tsp";
@@ -30,4 +31,3 @@ using Rest;
 })
 @server("http://localhost:8080", "Default endpoint for Kafbat UI API")
 namespace Api;
-

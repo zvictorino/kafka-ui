@@ -1,7 +1,7 @@
 import { array, boolean, object, string } from 'yup';
 
 const formSchema = object({
-  principal: string().required(),
+  username: string().trim().required(),
   host: string().required(),
   topics: array().of(
     object().shape({

@@ -38,10 +38,12 @@ const ACList: React.FC = () => {
   const { clusterName } = useAppParams<{ clusterName: ClusterName }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isFtsEnabled } = useFts('acl');
+  const [showSystemUsers, setShowSystemUsers] = React.useState(false);
   const acls = useAcls({
     clusterName,
     search: searchParams.get('q') ?? '',
     fts: isFtsEnabled,
+    showSystemUsers,
   });
   const { isReadOnly } = React.useContext(ClusterContext);
   const {
@@ -95,6 +97,14 @@ const ACList: React.FC = () => {
           placeholder="Search by Principal Name"
           extraActions={<Fts resourceName="acl" />}
         />
+        <label>
+          <input
+            type="checkbox"
+            checked={showSystemUsers}
+            onChange={(event) => setShowSystemUsers(event.target.checked)}
+          />{' '}
+          Show system and super users
+        </label>
       </ControlPanelWrapper>
 
       {(acls.isLoading || acls.isRefetching) && <PageLoader offsetY={300} />}

@@ -144,6 +144,13 @@ model ApplicationConfig {
       clusters?: {
         name?: string;
         bootstrapServers?: string;
+        zookeeperConnect?: string;
+        /**
+         * Kafka principals (for example "User:admin") to protect as super users. Needed because
+         * Kafka marks super.users as a sensitive config and redacts its value, so the UI cannot
+         * discover super users from the brokers on many clusters.
+         */
+        superUsers?: string[];
         ssl?: {
           truststoreLocation?: string;
           truststorePassword?: string;
